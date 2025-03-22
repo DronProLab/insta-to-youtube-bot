@@ -16,7 +16,7 @@ from auth import authenticate_youtube
 from googleapiclient.http import MediaFileUpload
 from dotenv import load_dotenv
 
-# ========== ЗАПУСК FLASK ДЛЯ Render ==========
+# ========== Flask для Render ==========
 app = Flask(__name__)
 
 @app.route('/')
@@ -26,20 +26,15 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=10000)
 
-# ========== НАСТРОЙКА БОТА ==========
+# ========== Бот и настройки ==========
 load_dotenv()
 
 def reset_polling_conflicts():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     url = f"https://api.telegram.org/bot{token}/deleteWebhook"
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            print("🔁 Webhook удалён — polling разблокирован")
-        else:
-            print(f"⚠ Не удалось удалить Webhook: {response.text}")
-    except Exception as e:
-        print(f"❌ Ошибка при удалении Webhook: {e}")
+        requests.get(url)
+    except: pass
 
 reset_polling_conflicts()
 
@@ -47,10 +42,12 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-MAX_QUEUE_SIZE = 50
-DAILY_UPLOAD_LIMIT = 10
+UPLOAD_BATCH = 5
 QUEUE_FILE = "queue.json"
 video_queue = []
+
+keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+keyboard.add(KeyboardButton("🔄 Проверить статус"), KeyboardButton("🚀 Загрузить сейчас"))
 
 logging.basicConfig(filename="logs.txt", level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -71,10 +68,6 @@ def load_queue():
         logging.error(f"Ошибка загрузки очереди: {e}")
 
 load_queue()
-
-keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-keyboard.add(KeyboardButton("🔄 Проверить статус"), KeyboardButton("🚀 Загрузить сейчас"))
-
 youtube = authenticate_youtube()
 
 def download_instagram_video(url):
@@ -142,7 +135,7 @@ def handle_message(message):
     match = re.search(instagram_pattern, text)
 
     if match:
-        if len(video_queue) >= MAX_QUEUE_SIZE:
+        if len(video_queue) >= 50:
             bot.send_message(message.chat.id, "⚠ Очередь заполнена!", reply_markup=keyboard)
             return
 
@@ -158,17 +151,16 @@ def handle_message(message):
 
     elif text == "🔄 Проверить статус":
         now = datetime.now()
-        next_upload_time = datetime.combine(now.date(), datetime.strptime("10:00", "%H:%M").time())
-        if now > next_upload_time:
-            next_upload_time += timedelta(days=1)
-        time_remaining = next_upload_time - now
+        next_upload_times = [datetime.combine(now.date(), datetime.strptime(t, "%H:%M").time()) for t in ["08:00", "13:00"]]
+        next_upload = next(filter(lambda t: t > now, next_upload_times), next_upload_times[0] + timedelta(days=1))
+        time_remaining = next_upload - now
         hours, remainder = divmod(time_remaining.seconds, 3600)
         minutes, _ = divmod(remainder, 60)
 
         if not video_queue:
             bot.send_message(message.chat.id, f"🎬 Очередь пуста.\n⏳ До загрузки: {hours} ч {minutes} мин", reply_markup=keyboard)
         else:
-            queue_info = f"📌 В очереди {len(video_queue)} видео (загрузится {min(len(video_queue), DAILY_UPLOAD_LIMIT)}):\n"
+            queue_info = f"📌 В очереди {len(video_queue)} видео (загрузится {UPLOAD_BATCH}):\n"
             for idx, (_, video_path, _) in enumerate(video_queue[:10], 1):
                 queue_info += f"{idx}. {os.path.basename(video_path)}\n"
             queue_info += f"\n⏳ До загрузки: {hours} ч {minutes} мин"
@@ -184,12 +176,15 @@ def handle_message(message):
                 time.sleep(5)
             bot.send_message(message.chat.id, "✅ Все видео загружены!", reply_markup=keyboard)
 
-def scheduled_upload():
-    videos_to_upload = min(len(video_queue), DAILY_UPLOAD_LIMIT)
+def scheduled_upload(period_label=""):
+    print(f"⏰ Загрузка ({period_label}) запущена")
+    videos_to_upload = min(len(video_queue), UPLOAD_BATCH)
     for _ in range(videos_to_upload):
         process_queue()
 
-schedule.every().day.at("10:00").do(scheduled_upload)
+# === Два раза в день ===
+schedule.every().day.at("08:00").do(lambda: scheduled_upload("Утро"))
+schedule.every().day.at("13:00").do(lambda: scheduled_upload("Вечер"))
 
 def run_schedule():
     while True:
