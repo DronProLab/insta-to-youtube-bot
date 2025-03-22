@@ -1,37 +1,50 @@
-import telebot
-import yt_dlp
 import os
 import sys
+import telebot
+import yt_dlp
 import schedule
 import time
 import logging
 import threading
 import json
 import re
+import requests
 from datetime import datetime, timedelta
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 from auth import authenticate_youtube
 from googleapiclient.http import MediaFileUpload
+from dotenv import load_dotenv
 
-# 🔹 Логирование
-logging.basicConfig(filename="logs.txt", level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+# Загрузка .env и сброс polling-конфликтов
+load_dotenv()
 
-# 🔹 API-ключ
-TELEGRAM_BOT_TOKEN = "7676882544:AAE4-P6myPOjqrV_HSgnmtC3FJAhwWFsMJc"
+def reset_polling_conflicts():
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    url = f"https://api.telegram.org/bot{token}/deleteWebhook"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            print("🔁 Webhook удалён — polling разблокирован")
+        else:
+            print(f"⚠ Не удалось удалить Webhook: {response.text}")
+    except Exception as e:
+        print(f"❌ Ошибка при удалении Webhook: {e}")
+
+reset_polling_conflicts()
+
+# Переменные
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
+
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-# 🔹 ID администратора
-ADMIN_ID = 5868926146  
-
-# 🔹 Лимиты
-MAX_QUEUE_SIZE = 50  
-DAILY_UPLOAD_LIMIT = 10  
-
-# 🔹 Файл для сохранения очереди
+MAX_QUEUE_SIZE = 50
+DAILY_UPLOAD_LIMIT = 10
 QUEUE_FILE = "queue.json"
 video_queue = []
 
-# 🔹 Функции сохранения и загрузки очереди
+logging.basicConfig(filename="logs.txt", level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
+
 def save_queue():
     try:
         with open(QUEUE_FILE, "w") as f:
@@ -48,17 +61,13 @@ def load_queue():
     except Exception as e:
         logging.error(f"Ошибка загрузки очереди: {e}")
 
-# Загружаем очередь при запуске
 load_queue()
 
-# 🔹 Клавиатура
 keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
 keyboard.add(KeyboardButton("🔄 Проверить статус"), KeyboardButton("🚀 Загрузить сейчас"))
 
-# 🔹 Подключаем YouTube API
 youtube = authenticate_youtube()
 
-# 🔹 Функция скачивания видео
 def download_instagram_video(url):
     save_path = "downloads"
     if not os.path.exists(save_path):
@@ -81,7 +90,6 @@ def download_instagram_video(url):
         logging.error(f"Ошибка скачивания видео: {e}")
         return None, None
 
-# 🔹 Функция загрузки видео
 def upload_to_youtube(video_path, title, description):
     try:
         request = youtube.videos().insert(
@@ -103,29 +111,24 @@ def upload_to_youtube(video_path, title, description):
         logging.error(f"Ошибка загрузки видео: {e}")
         return None
 
-# 🔹 Функция загрузки видео из очереди
 def process_queue():
     if video_queue:
         chat_id, video_path, description = video_queue.pop(0)
         save_queue()
-        title = "Видео с Instagram"
+        title = os.path.basename(video_path).replace(".mp4", "")
         try:
             video_id = upload_to_youtube(video_path, title, description)
             if video_id:
                 bot.send_message(chat_id, f"🎥 Видео загружено: https://www.youtube.com/watch?v={video_id}")
-
                 if os.path.exists(video_path):
                     os.remove(video_path)
         except Exception as e:
             logging.error(f"Ошибка загрузки видео: {e}")
             bot.send_message(chat_id, f"❌ Ошибка загрузки: {e}")
 
-# 🔹 Обработка сообщений
 @bot.message_handler(content_types=["text"])
 def handle_message(message):
     text = message.text.strip()
-
-    # 📌 Обрабатываем ссылки Instagram
     instagram_pattern = r"(https?:\/\/)?(www\.)?(instagram\.com\/\S+)"
     match = re.search(instagram_pattern, text)
 
@@ -144,14 +147,11 @@ def handle_message(message):
         else:
             bot.send_message(message.chat.id, "❌ Ошибка скачивания видео.", reply_markup=keyboard)
 
-    # 📌 Проверяем кнопку "Проверить статус"
     elif text == "🔄 Проверить статус":
         now = datetime.now()
         next_upload_time = datetime.combine(now.date(), datetime.strptime("10:00", "%H:%M").time())
-
         if now > next_upload_time:
             next_upload_time += timedelta(days=1)
-
         time_remaining = next_upload_time - now
         hours, remainder = divmod(time_remaining.seconds, 3600)
         minutes, _ = divmod(remainder, 60)
@@ -161,12 +161,10 @@ def handle_message(message):
         else:
             queue_info = f"📌 В очереди {len(video_queue)} видео (загрузится {min(len(video_queue), DAILY_UPLOAD_LIMIT)}):\n"
             for idx, (_, video_path, _) in enumerate(video_queue[:10], 1):
-                queue_info += f"{idx}. {video_path.split('/')[-1]}\n"
-
+                queue_info += f"{idx}. {os.path.basename(video_path)}\n"
             queue_info += f"\n⏳ До загрузки: {hours} ч {minutes} мин"
             bot.send_message(message.chat.id, queue_info, reply_markup=keyboard)
 
-    # 📌 Проверяем кнопку "Загрузить сейчас"
     elif text == "🚀 Загрузить сейчас":
         if not video_queue:
             bot.send_message(message.chat.id, "⚠ Очередь пуста.", reply_markup=keyboard)
@@ -177,7 +175,6 @@ def handle_message(message):
                 time.sleep(5)
             bot.send_message(message.chat.id, "✅ Все видео загружены!", reply_markup=keyboard)
 
-# 🔹 Автозагрузка видео (до 10 в день)
 def scheduled_upload():
     videos_to_upload = min(len(video_queue), DAILY_UPLOAD_LIMIT)
     for _ in range(videos_to_upload):
@@ -185,13 +182,11 @@ def scheduled_upload():
 
 schedule.every().day.at("10:00").do(scheduled_upload)
 
-# 🔹 Фоновый процесс
 def run_schedule():
     while True:
         schedule.run_pending()
         time.sleep(60)
 
-# 🔹 Запуск бота
 try:
     threading.Thread(target=run_schedule, daemon=True).start()
     bot.polling(none_stop=True)
