@@ -9,13 +9,24 @@ import threading
 import json
 import re
 import requests
+from flask import Flask
 from datetime import datetime, timedelta
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 from auth import authenticate_youtube
 from googleapiclient.http import MediaFileUpload
 from dotenv import load_dotenv
 
-# Загрузка .env и сброс polling-конфликтов
+# ========== ЗАПУСК FLASK ДЛЯ Render ==========
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return 'Bot is running!', 200
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
+
+# ========== НАСТРОЙКА БОТА ==========
 load_dotenv()
 
 def reset_polling_conflicts():
@@ -32,10 +43,8 @@ def reset_polling_conflicts():
 
 reset_polling_conflicts()
 
-# Переменные
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
-
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 MAX_QUEUE_SIZE = 50
@@ -188,6 +197,7 @@ def run_schedule():
         time.sleep(60)
 
 try:
+    threading.Thread(target=run_flask, daemon=True).start()
     threading.Thread(target=run_schedule, daemon=True).start()
     bot.polling(none_stop=True)
 except Exception as e:
