@@ -1,4 +1,4 @@
-pyTelegramBotAPI
+pyTelegramBotAPI==4.12.0
 yt-dlp
 google-api-python-client
 google-auth
