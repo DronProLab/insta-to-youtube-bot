@@ -16,7 +16,7 @@ from auth import authenticate_youtube
 from googleapiclient.http import MediaFileUpload
 from dotenv import load_dotenv
 
-# ========== Flask для Render ==========
+# Flask для Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -26,7 +26,7 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=10000)
 
-# ========== Бот и настройки ==========
+# Настройки и загрузка .env
 load_dotenv()
 
 def reset_polling_conflicts():
@@ -38,6 +38,7 @@ def reset_polling_conflicts():
 
 reset_polling_conflicts()
 
+# Переменные
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
@@ -46,8 +47,13 @@ UPLOAD_BATCH = 5
 QUEUE_FILE = "queue.json"
 video_queue = []
 
+# Клавиатура
 keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-keyboard.add(KeyboardButton("🔄 Проверить статус"), KeyboardButton("🚀 Загрузить сейчас"))
+keyboard.add(
+    KeyboardButton("🔄 Проверить статус"),
+    KeyboardButton("🚀 Загрузить сейчас"),
+    KeyboardButton("🕒 Изменить время")
+)
 
 logging.basicConfig(filename="logs.txt", level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -151,20 +157,30 @@ def handle_message(message):
 
     elif text == "🔄 Проверить статус":
         now = datetime.now()
-        next_upload_times = [datetime.combine(now.date(), datetime.strptime(t, "%H:%M").time()) for t in ["08:00", "13:00"]]
-        next_upload = next(filter(lambda t: t > now, next_upload_times), next_upload_times[0] + timedelta(days=1))
-        time_remaining = next_upload - now
-        hours, remainder = divmod(time_remaining.seconds, 3600)
-        minutes, _ = divmod(remainder, 60)
+        times = [("Утро", "08:00"), ("Вечер", "13:00")]
+        response = ""
 
-        if not video_queue:
-            bot.send_message(message.chat.id, f"🎬 Очередь пуста.\n⏳ До загрузки: {hours} ч {minutes} мин", reply_markup=keyboard)
-        else:
-            queue_info = f"📌 В очереди {len(video_queue)} видео (загрузится {UPLOAD_BATCH}):\n"
-            for idx, (_, video_path, _) in enumerate(video_queue[:10], 1):
-                queue_info += f"{idx}. {os.path.basename(video_path)}\n"
-            queue_info += f"\n⏳ До загрузки: {hours} ч {minutes} мин"
-            bot.send_message(message.chat.id, queue_info, reply_markup=keyboard)
+        for label, time_str in times:
+            upload_time = datetime.combine(now.date(), datetime.strptime(time_str, "%H:%M").time())
+            if now > upload_time:
+                upload_time += timedelta(days=1)
+
+            time_remaining = upload_time - now
+            hours, remainder = divmod(time_remaining.seconds, 3600)
+            minutes, _ = divmod(remainder, 60)
+
+            response += f"⏰ {label} — через {hours} ч {minutes} мин\n"
+
+            if video_queue:
+                count = min(len(video_queue), UPLOAD_BATCH)
+                for idx, (_, video_path, _) in enumerate(video_queue[:count], 1):
+                    response += f"{idx}. {os.path.basename(video_path)}\n"
+            else:
+                response += "Очередь пуста\n"
+
+            response += "\n"
+
+        bot.send_message(message.chat.id, response.strip(), reply_markup=keyboard)
 
     elif text == "🚀 Загрузить сейчас":
         if not video_queue:
@@ -176,13 +192,16 @@ def handle_message(message):
                 time.sleep(5)
             bot.send_message(message.chat.id, "✅ Все видео загружены!", reply_markup=keyboard)
 
+    elif text == "🕒 Изменить время":
+        bot.send_message(message.chat.id, "⚙ Эта функция пока в разработке. В будущем вы сможете сами менять время загрузок.", reply_markup=keyboard)
+
 def scheduled_upload(period_label=""):
     print(f"⏰ Загрузка ({period_label}) запущена")
     videos_to_upload = min(len(video_queue), UPLOAD_BATCH)
     for _ in range(videos_to_upload):
         process_queue()
 
-# === Два раза в день ===
+# Автоматическая загрузка — 08:00 и 13:00 PST
 schedule.every().day.at("08:00").do(lambda: scheduled_upload("Утро"))
 schedule.every().day.at("13:00").do(lambda: scheduled_upload("Вечер"))
 
