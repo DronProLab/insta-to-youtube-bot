@@ -1,0 +1,7 @@
+python-telegram-bot==13.15
+yt-dlp
+google-api-python-client
+google-auth
+google-auth-oauthlib
+python-dotenv
+schedule
