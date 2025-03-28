@@ -4,7 +4,7 @@ import yt_dlp
 import traceback
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from Auth import get_authenticated_service
+from auth import get_authenticated_service
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(TOKEN)
