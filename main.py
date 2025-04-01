@@ -6,7 +6,7 @@ from flask import Flask, request
 from auth import get_authenticated_service
 from googleapiclient.http import MediaFileUpload
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
