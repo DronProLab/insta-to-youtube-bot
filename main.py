@@ -36,9 +36,13 @@ def download_instagram_video(url):
 def upload_to_youtube(video_path, description):
     try:
         youtube = get_authenticated_service()
+
+        # 📌 Формируем осмысленное название из первых 10 слов описания
+        title = " ".join(description.strip().split()[:10]) or "Instagram Shorts"
+
         body = {
             'snippet': {
-                'title': os.path.basename(video_path).replace("_", " "),
+                'title': title,
                 'description': description,
                 'tags': ['Instagram', 'shorts'],
                 'categoryId': '22'
@@ -47,10 +51,12 @@ def upload_to_youtube(video_path, description):
                 'privacyStatus': 'public'
             }
         }
+
         media = MediaFileUpload(video_path, mimetype='video/mp4', resumable=True)
         request = youtube.videos().insert(part='snippet,status', body=body, media_body=media)
         response = request.execute()
         return response.get("id")
+
     except Exception as e:
         raise Exception(f"Ошибка при загрузке: {e}")
 
