@@ -33,9 +33,19 @@ def download_instagram_video(url):
 def upload_to_youtube(video_path, description):
     try:
         youtube = get_authenticated_service()
+
+        # ✅ Формируем красивое название
+        if description:
+            # Удаляем хештеги и берём первые 7 слов
+            clean_description = ' '.join(word for word in description.strip().split() if not word.startswith("#"))
+            title_part = " ".join(clean_description.split()[:7])
+            title = f"Like and subscribe {title_part}".strip()
+        else:
+            title = "Like and subscribe      #sexy #wooman #baby #girl #nasty #young #sweaty #ass"
+
         body = {
             'snippet': {
-                'title': os.path.basename(video_path).replace("_", " ").replace(".mp4", ""),
+                'title': title,
                 'description': description,
                 'tags': ['Instagram', 'shorts'],
                 'categoryId': '22'
@@ -44,6 +54,7 @@ def upload_to_youtube(video_path, description):
                 'privacyStatus': 'public'
             }
         }
+
         media = MediaFileUpload(video_path, mimetype='video/mp4', resumable=True)
         request = youtube.videos().insert(part='snippet,status', body=body, media_body=media)
         response = request.execute()
