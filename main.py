@@ -13,6 +13,37 @@ app = Flask(__name__)
 SAVE_DIR = "downloads"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
+# ===== Генератор заголовка и описания =====
+def generate_title_and_description(raw_description):
+    default_description = (
+        "Welcome to our channel, where we celebrate the beauty, elegance, and charm of women from all over the world. "
+        "Our videos feature glamorous models, stunning photoshoots, and the latest trends in fashion and lifestyle. "
+        "We showcase diverse styles, from runway looks to casual beauty, giving you an inside view into the world of elegance and femininity. "
+        "Whether you're here for inspiration or simply love fashion, our content brings you a taste of beauty from across the globe.\n\n"
+        "#beauty #elegance #fashion #women #glamour #femininity #stylishwomen #internationalwomen #globalbeauty #models #photoshoots "
+        "#femaleempowerment #fashiontrends #gracefulwomen #lifestyle #inspiringwomen #fashionmodels #beautytips #luxury "
+        "#fashionphotography #modelife #runwaymodels #classywomen #highfashion #stunningwomen #beautifulmodels #hotass #assgirl "
+        "#sexyass #sexy #glamorous #worldbeauty #styleicons #glamorouswomen #beautyinfluencers #modelphotos #beautyinspiration "
+        "#fashionshows #femininepower #glamourlife #luxurystyle #runwaylooks #elegantstyle #chicstyle #celebrityfashion "
+        "#fashionistas #beautygoals #modelinglife #modelingtips #fashionshoot #classylooks #globalmodels #glamorouslife "
+        "#beautifulwomen #elegancegoals #makeuptrends #beautyblogger #fashionblogger #beautyinfluencer #makeupartist "
+        "#modelingagency #famousmodels #fashionrunway #beautycontest #stunninglooks #fashionevents #chicfashion #modelfashion "
+        "#runwaylooks #beautyshoot #glamourphotography #luxuryfashion #highendfashion #celebritymodels #hotgirls #sexygirls "
+        "#fashionweek #catwalk #beautyqueen #sexyoutfits #elegantwomen #femalemodels #modelfashion #fashionlovers #beautystyle "
+        "#modelinspiration #luxurylifestyle #classymodels #famousfaces #trendystyle #elegantlooks #styleinspo #styleblogger "
+        "#beautyshoots #editorialfashion #couturefashion #makeupinspo #celebritystyle #famousmodels #runwayphotography "
+        "#glamourmagazine #couturemodels #beautyshots #glamshoot #celebrityglamour"
+    )
+
+    if raw_description:
+        clean_description = ' '.join(word for word in raw_description.strip().split() if not word.startswith("#"))
+        title_part = " ".join(clean_description.split()[:7])
+        title = f"Like and subscribe – {title_part}".strip()
+        return title, raw_description
+    else:
+        title = "Like and subscribe"
+        return title, default_description
+
 # ===== Скачивание видео =====
 def download_instagram_video(url):
     try:
@@ -30,18 +61,10 @@ def download_instagram_video(url):
         raise Exception(f"Ошибка при скачивании: {e}")
 
 # ===== Загрузка на YouTube =====
-def upload_to_youtube(video_path, description):
+def upload_to_youtube(video_path, raw_description):
     try:
         youtube = get_authenticated_service()
-
-        # ✅ Формируем красивое название
-        if description:
-            # Удаляем хештеги и берём первые 7 слов
-            clean_description = ' '.join(word for word in description.strip().split() if not word.startswith("#"))
-            title_part = " ".join(clean_description.split()[:7])
-            title = f"Like and subscribe {title_part}".strip()
-        else:
-            title = "Like and subscribe      #sexy #wooman #baby #girl #nasty #young #sweaty #ass"
+        title, description = generate_title_and_description(raw_description)
 
         body = {
             'snippet': {
@@ -100,7 +123,6 @@ def webhook():
 
 # ===== Установка Webhook =====
 if __name__ == "__main__":
-    # Укажи свой домен от Render:
     WEBHOOK_URL = f"https://insta-to-youtube-bot.onrender.com/{TOKEN}"
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
