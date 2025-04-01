@@ -1,29 +1,28 @@
-import json
-import requests
+from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-
-# 🔹 Обнови CLIENT_ID и CLIENT_SECRET
-CLIENT_ID = "308564230559-f05itdcom329pku28e9lsnjndq1aj8sp.apps.googleusercontent.com"
-CLIENT_SECRET = "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"  # Найди его в Google Cloud Console
-REFRESH_TOKEN = "1//04pz9c3WluUlBCgYIARAAGAQSNwF-L9IrSoxjq5T7OvA8S76txF92oOWDatCSs5xwROzIfp__drCfXdnCsacmJlHBgXpx88gN2_c"
+import os
+import json
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 
-def authenticate_youtube():
-    creds = Credentials.from_authorized_user_info({
-        "token": "",
-        "refresh_token": REFRESH_TOKEN,
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "scopes": SCOPES
-    })
+def get_authenticated_service():
+    creds = None
 
-    creds.refresh(Request())  # ✅ Автообновление токена
+    if os.path.exists("token.json"):
+        with open("token.json", "r") as token:
+            creds_data = json.load(token)
+            from google.oauth2.credentials import Credentials
+            creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+
     return build("youtube", "v3", credentials=creds)
-
-# Проверяем авторизацию
-youtube = authenticate_youtube()
-print("✅ Авторизация успешна!")
