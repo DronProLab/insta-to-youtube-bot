@@ -2,25 +2,22 @@ import os
 import telebot
 import yt_dlp
 import traceback
-from flask import Flask
-import threading
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from flask import Flask, request
 from auth import get_authenticated_service
+from googleapiclient.http import MediaFileUpload
 
-# 🔐 Получаем токен из переменной окружения
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # исправлено с TELEGRAM_TOKEN
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(TOKEN)
+app = Flask(__name__)
 
-# 📁 Папка для сохранения видео
 SAVE_DIR = "downloads"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# 🔽 Скачивание видео из Instagram
+# ===== Скачивание видео =====
 def download_instagram_video(url):
     try:
         ydl_opts = {
-            'outtmpl': f'{SAVE_DIR}/%(upload_date)s_%(id)s.%(ext)s',
+            'outtmpl': f'{SAVE_DIR}/%(title).50s.%(ext)s',
             'format': 'mp4',
             'quiet': True,
         }
@@ -32,17 +29,13 @@ def download_instagram_video(url):
     except Exception as e:
         raise Exception(f"Ошибка при скачивании: {e}")
 
-# ⬆️ Загрузка видео на YouTube
+# ===== Загрузка на YouTube =====
 def upload_to_youtube(video_path, description):
     try:
         youtube = get_authenticated_service()
-
-        # 📌 Формируем осмысленное название из первых 10 слов описания
-        title = " ".join(description.strip().split()[:10]) or "Instagram Shorts"
-
         body = {
             'snippet': {
-                'title': title,
+                'title': os.path.basename(video_path).replace("_", " ").replace(".mp4", ""),
                 'description': description,
                 'tags': ['Instagram', 'shorts'],
                 'categoryId': '22'
@@ -51,21 +44,18 @@ def upload_to_youtube(video_path, description):
                 'privacyStatus': 'public'
             }
         }
-
         media = MediaFileUpload(video_path, mimetype='video/mp4', resumable=True)
         request = youtube.videos().insert(part='snippet,status', body=body, media_body=media)
         response = request.execute()
         return response.get("id")
-
     except Exception as e:
         raise Exception(f"Ошибка при загрузке: {e}")
 
-# 🧾 Обработка /start
+# ===== Обработка команд =====
 @bot.message_handler(commands=["start"])
 def welcome(msg):
     bot.send_message(msg.chat.id, "Привет! Отправь ссылку на Instagram-видео для загрузки на YouTube.")
 
-# 🔗 Получаем ссылку и запускаем процесс
 @bot.message_handler(func=lambda m: m.text and "instagram.com" in m.text)
 def handle_instagram(msg):
     chat_id = msg.chat.id
@@ -85,18 +75,22 @@ def handle_instagram(msg):
         error_text = traceback.format_exc()
         bot.send_message(chat_id, f"❌ Ошибка:\n{str(e)}")
 
-# 🌐 Flask-сервер для Render (чтобы Web Service не засыпал)
-app = Flask(__name__)
+# ===== Flask Webhook =====
+@app.route('/', methods=['GET'])
+def index():
+    return "Bot is running!", 200
 
-@app.route('/')
-def home():
-    return "Bot is alive!"
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return '', 200
 
-def run_flask():
-    app.run(host='0.0.0.0', port=10000)
-
-# 🔄 Запускаем и Flask, и бота
-if __name__ == '__main__':
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-    bot.polling(none_stop=True)
+# ===== Установка Webhook =====
+if __name__ == "__main__":
+    # Укажи свой домен от Render:
+    WEBHOOK_URL = f"https://insta-to-youtube-bot.onrender.com/{TOKEN}"
+    bot.remove_webhook()
+    bot.set_webhook(url=WEBHOOK_URL)
+    app.run(host="0.0.0.0", port=10000)
