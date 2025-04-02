@@ -55,10 +55,10 @@ def generate_title_and_description(raw_description):
 def download_instagram_video(url):
     try:
         ydl_opts = {
-            'outtmpl': f'{SAVE_DIR}/%(title).50s.%(ext)s',
-            'format': 'mp4',
-            'quiet': True,
-        }
+    'quiet': True,
+    'skip_download': True,
+    'cookiefile': 'share.txt',  # 🔐 Подключаем авторизацию
+}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
