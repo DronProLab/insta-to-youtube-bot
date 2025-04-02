@@ -24,8 +24,11 @@ UPLOADED_FILE = "uploaded_videos.json"
 
 # === Клавиатура ===
 keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-keyboard.add(
+keyboard.row(
     KeyboardButton("📄 Список каналов"),
+    KeyboardButton("🧾 Список видео >100K")
+)
+keyboard.row(
     KeyboardButton("🛠 Обновить Reels сейчас"),
     KeyboardButton("📤 Загрузить 1 видео сейчас")
 )
@@ -164,6 +167,17 @@ def handle_all(message):
         parse_popular_reels()
         bot.send_message(chat_id, "🔄 Reels обновлены!", reply_markup=keyboard)
 
+    elif text == "🧾 Список видео >100K":
+        videos = load_json(POPULAR_FILE)
+        if not videos:
+            bot.send_message(chat_id, "📭 Список найденных видео пуст.", reply_markup=keyboard)
+        else:
+            last_videos = videos[-10:]
+            msg = "🎥 Популярные видео (>100K):\n\n"
+            for v in last_videos:
+                msg += f"{v['url']}\n👁 {v['views']} просмотров\n\n"
+            bot.send_message(chat_id, msg.strip(), reply_markup=keyboard)
+
     elif text == "📤 Загрузить 1 видео сейчас":
         upload_one_from_popular()
         bot.send_message(chat_id, "📤 Загрузка завершена (если было доступное видео).", reply_markup=keyboard)
@@ -180,9 +194,9 @@ def handle_all(message):
                 if os.path.exists(path):
                     os.remove(path)
             except Exception as e:
-                bot.send_message(chat_id, f"❌ Ошибка:\n{e}", reply_markup=keyboard)
-        else_url = text.split('?')[0]  # удаляем параметры 
-        if re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", else_url):
+                bot.send_message(chat_id, f"❌ Ошибка:
+{e}", reply_markup=keyboard)
+        elif re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", text):
             # Это канал — добавляем
             channels = load_json(CHANNELS_FILE)
             if text in channels:
