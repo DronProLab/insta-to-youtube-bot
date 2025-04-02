@@ -85,6 +85,47 @@ def upload_to_youtube(video_path, raw_description):
     except Exception as e:
         raise Exception(f"Ошибка при загрузке: {e}")
 
+CHANNELS_FILE = "channels.json"
+
+def load_channels():
+    if not os.path.exists(CHANNELS_FILE):
+        return []
+    with open(CHANNELS_FILE, "r") as f:
+        return json.load(f)
+
+def save_channels(channels):
+    with open(CHANNELS_FILE, "w") as f:
+        json.dump(channels, f, indent=4)
+
+# Команда: добавить канал
+@bot.message_handler(commands=["add_channel"])
+def add_channel(message):
+    parts = message.text.split()
+    if len(parts) != 2:
+        bot.reply_to(message, "⚠ Используй: /add_channel <ссылка>")
+        return
+
+    url = parts[1].strip()
+    channels = load_channels()
+
+    if url in channels:
+        bot.reply_to(message, "✅ Канал уже в списке.")
+        return
+
+    channels.append(url)
+    save_channels(channels)
+    bot.reply_to(message, "✅ Канал добавлен!")
+
+# Команда: список каналов
+@bot.message_handler(commands=["list_channels"])
+def list_channels(message):
+    channels = load_channels()
+    if not channels:
+        bot.reply_to(message, "📭 Список каналов пуст.")
+    else:
+        response = "📺 Текущие каналы:\n" + "\n".join(f"{idx+1}. {c}" for idx, c in enumerate(channels))
+        bot.reply_to(message, response)
+
 # ===== Обработка команд =====
 @bot.message_handler(commands=["start"])
 def welcome(msg):
