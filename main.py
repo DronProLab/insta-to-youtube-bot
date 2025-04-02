@@ -195,7 +195,8 @@ def handle_all(message):
                     os.remove(path)
             except Exception as e:
                 bot.send_message(chat_id, f"❌ Ошибка:\n{e}", reply_markup=keyboard)
-        elif re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", text):
+        else_url = text.split('?')[0]  # удаляем параметры
+if re.match(r"https://(www\\.)?instagram\\.com/[^/]+/?$", else_url):
             # Это канал — добавляем
             channels = load_json(CHANNELS_FILE)
             if text in channels:
