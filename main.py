@@ -101,17 +101,18 @@ def parse_popular_reels():
                 ch += "/"
             reels_url = ch + "reels/"
             ydl_opts = {
-                "extract_flat": True,
                 "quiet": True,
                 "skip_download": True,
-                "force_generic_extractor": True,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 result = ydl.extract_info(reels_url, download=False)
+
                 for entry in result.get("entries", []):
+                    print("DEBUG:", entry)  # 👈 Показываем, что приходит от yt_dlp
+
                     url = entry.get("url")
                     views = entry.get("view_count", 0)
-                    if url and views and views > 100000 and url not in existing_urls:
+                    if url and url not in existing_urls:
                         new_videos.append({"url": url, "views": views})
                         existing.append({"url": url, "views": views})
                         existing_urls.add(url)
@@ -121,6 +122,8 @@ def parse_popular_reels():
     if new_videos:
         save_json(POPULAR_FILE, existing)
         print(f"✅ Добавлено новых Reels: {len(new_videos)}")
+    else:
+        print("ℹ️ Новых Reels не найдено.")
 
 def upload_one_from_popular():
     uploaded = set(load_json(UPLOADED_FILE))
@@ -167,7 +170,7 @@ def handle_all(message):
             bot.send_message(chat_id, "📭 Список найденных видео пуст.", reply_markup=keyboard)
         else:
             last_videos = videos[-10:]
-            msg = "🎥 Популярные видео (>100K):\n\n"
+            msg = "🎥 Популярные видео:\n\n"
             for v in last_videos:
                 msg += f"{v['url']}\n👁 {v['views']} просмотров\n\n"
             bot.send_message(chat_id, msg.strip(), reply_markup=keyboard)
@@ -194,7 +197,7 @@ def handle_all(message):
                 bot.send_message(chat_id, f"❌ Ошибка: {e}", reply_markup=keyboard)
         else:
             clean_url = text.split("?")[0]
-            if re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", clean_url):
+            if re.match(r"https://(www\\.)?instagram\\.com/[^/]+/?$", clean_url):
                 channels = load_json(CHANNELS_FILE)
                 if clean_url in channels:
                     bot.send_message(chat_id, "✅ Канал уже в списке.", reply_markup=keyboard)
