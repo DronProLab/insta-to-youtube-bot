@@ -108,8 +108,7 @@ def parse_popular_reels():
                 result = ydl.extract_info(reels_url, download=False)
 
                 for entry in result.get("entries", []):
-                    print("DEBUG:", entry)  # 👈 Показываем, что приходит от yt_dlp
-
+                    print("DEBUG:", entry)
                     url = entry.get("url")
                     views = entry.get("view_count", 0)
                     if url and url not in existing_urls:
@@ -196,10 +195,8 @@ def handle_all(message):
             except Exception as e:
                 bot.send_message(chat_id, f"❌ Ошибка: {e}", reply_markup=keyboard)
         else:
-            clean_url = text.split("?")[0].rstrip("/")
-clean_url = clean_url + "/"
-if re.match(r"https://(www\\.)?instagram\\.com/[^/]+/$", clean_url):
-
+            clean_url = text.split("?")[0].rstrip("/") + "/"
+            if re.match(r"https://(www\.)?instagram\.com/[^/]+/$", clean_url):
                 channels = load_json(CHANNELS_FILE)
                 if clean_url in channels:
                     bot.send_message(chat_id, "✅ Канал уже в списке.", reply_markup=keyboard)
@@ -208,8 +205,7 @@ if re.match(r"https://(www\\.)?instagram\\.com/[^/]+/$", clean_url):
                     save_json(CHANNELS_FILE, channels)
                     bot.send_message(chat_id, "✅ Канал добавлен!", reply_markup=keyboard)
             else:
-                bot.send_message(chat_id, "⚠ Ссылка непонятна. Отправь ссылку на Reels или на Instagram-канал.", reply_markup=keyboard)
-
+                bot.send_message(chat_id, "⚠ Ссылка непонятна. Отправь ссылку на Reels или Instagram-канал.", reply_markup=keyboard)
     else:
         bot.send_message(chat_id, "❓ Неизвестная команда.", reply_markup=keyboard)
 
