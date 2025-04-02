@@ -7,6 +7,7 @@ import threading
 import time
 import telebot
 from flask import Flask, request
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 from auth import get_authenticated_service
 from googleapiclient.http import MediaFileUpload
 
@@ -19,6 +20,14 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 CHANNELS_FILE = "channels.json"
 POPULAR_FILE = "popular_videos.json"
 UPLOADED_FILE = "uploaded_videos.json"
+
+# === Клавиатура ===
+keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+keyboard.add(
+    KeyboardButton("📄 Список каналов"),
+    KeyboardButton("🛠 Обновить Reels сейчас"),
+    KeyboardButton("📤 Загрузить 1 видео сейчас")
+)
 
 def load_json(file):
     if not os.path.exists(file):
@@ -135,7 +144,7 @@ def upload_one_from_popular():
 
 @bot.message_handler(commands=["start"])
 def welcome(msg):
-    bot.send_message(msg.chat.id, "Привет! Отправь ссылку на Instagram-видео или добавь канал: /add_channel <ссылка>")
+    bot.send_message(msg.chat.id, "Привет! Добавь Instagram-канал: /add_channel <url>", reply_markup=keyboard)
 
 @bot.message_handler(commands=["add_channel"])
 def add_channel(message):
@@ -152,30 +161,40 @@ def add_channel(message):
     save_json(CHANNELS_FILE, channels)
     bot.reply_to(message, "✅ Канал добавлен!")
 
-@bot.message_handler(commands=["list_channels"])
-def list_channels(message):
-    channels = load_json(CHANNELS_FILE)
-    if not channels:
-        bot.reply_to(message, "📭 Список каналов пуст.")
-    else:
-        msg = "\n".join([f"{i+1}. {c}" for i, c in enumerate(channels)])
-        bot.reply_to(message, "📺 Каналы:\n" + msg)
+@bot.message_handler(func=lambda m: True)
+def handle_buttons(message):
+    text = message.text.strip()
+    chat_id = message.chat.id
 
-@bot.message_handler(func=lambda m: m.text and "instagram.com" in m.text)
-def handle_instagram(msg):
-    chat_id = msg.chat.id
-    url = msg.text.strip()
-    try:
-        bot.send_message(chat_id, "📥 Скачиваю видео...")
-        video_path, description = download_instagram_video(url)
-        bot.send_message(chat_id, "🚀 Загружаю на YouTube...")
-        youtube_id = upload_to_youtube(video_path, description)
-        bot.send_message(chat_id, f"✅ Загружено! https://youtube.com/watch?v={youtube_id}")
-        if os.path.exists(video_path):
-            os.remove(video_path)
-    except Exception as e:
-        error_text = traceback.format_exc()
-        bot.send_message(chat_id, f"❌ Ошибка:\n{str(e)}")
+    if text == "📄 Список каналов":
+        channels = load_json(CHANNELS_FILE)
+        if not channels:
+            bot.send_message(chat_id, "📭 Список каналов пуст.", reply_markup=keyboard)
+        else:
+            msg = "\n".join([f"{i+1}. {c}" for i, c in enumerate(channels)])
+            bot.send_message(chat_id, "📺 Каналы:\n" + msg, reply_markup=keyboard)
+
+    elif text == "🛠 Обновить Reels сейчас":
+        parse_popular_reels()
+        bot.send_message(chat_id, "🔄 Reels обновлены!", reply_markup=keyboard)
+
+    elif text == "📤 Загрузить 1 видео сейчас":
+        upload_one_from_popular()
+        bot.send_message(chat_id, "📤 Загрузка завершена (если было доступное видео).", reply_markup=keyboard)
+
+    elif "instagram.com" in text:
+        try:
+            bot.send_message(chat_id, "📥 Скачиваю видео...", reply_markup=keyboard)
+            video_path, description = download_instagram_video(text)
+            bot.send_message(chat_id, "🚀 Загружаю на YouTube...", reply_markup=keyboard)
+            youtube_id = upload_to_youtube(video_path, description)
+            bot.send_message(chat_id, f"✅ Загружено! https://youtube.com/watch?v={youtube_id}", reply_markup=keyboard)
+            if os.path.exists(video_path):
+                os.remove(video_path)
+        except Exception as e:
+            bot.send_message(chat_id, f"❌ Ошибка:\n{str(e)}", reply_markup=keyboard)
+    else:
+        bot.send_message(chat_id, "❓ Неизвестная команда.", reply_markup=keyboard)
 
 @app.route('/', methods=['GET'])
 def index():
