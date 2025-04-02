@@ -71,7 +71,6 @@ def upload_to_youtube(video_path, raw_description):
     try:
         youtube = get_authenticated_service()
         title, description = generate_title_and_description(raw_description)
-
         body = {
             'snippet': {
                 'title': title,
@@ -83,7 +82,6 @@ def upload_to_youtube(video_path, raw_description):
                 'privacyStatus': 'public'
             }
         }
-
         media = MediaFileUpload(video_path, mimetype='video/mp4', resumable=True)
         request = youtube.videos().insert(part='snippet,status', body=body, media_body=media)
         response = request.execute()
@@ -163,10 +161,6 @@ def handle_all(message):
             msg = "\n".join([f"{i+1}. {c}" for i, c in enumerate(channels)])
             bot.send_message(chat_id, "📺 Каналы:\n" + msg, reply_markup=keyboard)
 
-    elif text == "🛠 Обновить Reels сейчас":
-        parse_popular_reels()
-        bot.send_message(chat_id, "🔄 Reels обновлены!", reply_markup=keyboard)
-
     elif text == "🧾 Список видео >100K":
         videos = load_json(POPULAR_FILE)
         if not videos:
@@ -178,11 +172,14 @@ def handle_all(message):
                 msg += f"{v['url']}\n👁 {v['views']} просмотров\n\n"
             bot.send_message(chat_id, msg.strip(), reply_markup=keyboard)
 
+    elif text == "🛠 Обновить Reels сейчас":
+        parse_popular_reels()
+        bot.send_message(chat_id, "🔄 Reels обновлены!", reply_markup=keyboard)
+
     elif text == "📤 Загрузить 1 видео сейчас":
         upload_one_from_popular()
         bot.send_message(chat_id, "📤 Загрузка завершена (если было доступное видео).", reply_markup=keyboard)
 
-    
     elif "instagram.com" in text:
         if "/reel/" in text:
             try:
@@ -196,53 +193,17 @@ def handle_all(message):
             except Exception as e:
                 bot.send_message(chat_id, f"❌ Ошибка: {e}", reply_markup=keyboard)
         else:
-            else_url = text.split('?')[0]
-            if re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", else_url):
+            clean_url = text.split("?")[0]
+            if re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", clean_url):
                 channels = load_json(CHANNELS_FILE)
-                if text in channels:
+                if clean_url in channels:
                     bot.send_message(chat_id, "✅ Канал уже в списке.", reply_markup=keyboard)
                 else:
-                    channels.append(text)
+                    channels.append(clean_url)
                     save_json(CHANNELS_FILE, channels)
                     bot.send_message(chat_id, "✅ Канал добавлен!", reply_markup=keyboard)
             else:
                 bot.send_message(chat_id, "⚠ Ссылка непонятна. Отправь ссылку на Reels или на Instagram-канал.", reply_markup=keyboard)
-
-lse:
-        else_url = text.split('?')[0]
-        if re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", else_url):
-            channels = load_json(CHANNELS_FILE)
-            if text in channels:
-                bot.send_message(chat_id, "✅ Канал уже в списке.", reply_markup=keyboard)
-            else:
-                channels.append(text)
-                save_json(CHANNELS_FILE, channels)
-                bot.send_message(chat_id, "✅ Канал добавлен!", reply_markup=keyboard)
-        else:
-            bot.send_message(chat_id, "⚠ Ссылка непонятна. Отправь ссылку на Reels или на Instagram-канал.", reply_markup=keyboard)
-        if "/reel/" in text:
-            # Это Reels — загружаем на YouTube
-            try:
-                bot.send_message(chat_id, "📥 Скачиваю Reels...", reply_markup=keyboard)
-                path, desc = download_instagram_video(text)
-                bot.send_message(chat_id, "🚀 Загружаю на YouTube...", reply_markup=keyboard)
-                video_id = upload_to_youtube(path, desc)
-                bot.send_message(chat_id, f"✅ Загружено: https://youtube.com/watch?v={video_id}", reply_markup=keyboard)
-                if os.path.exists(path):
-                    os.remove(path)
-            except Exception as e:
-                bot.send_message(chat_id, f"❌ Ошибка:\n{e}", reply_markup=keyboard)
-        elif re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", text):
-            # Это канал — добавляем
-            channels = load_json(CHANNELS_FILE)
-            if text in channels:
-                bot.send_message(chat_id, "✅ Канал уже в списке.", reply_markup=keyboard)
-            else:
-                channels.append(text)
-                save_json(CHANNELS_FILE, channels)
-                bot.send_message(chat_id, "✅ Канал добавлен!", reply_markup=keyboard)
-        else:
-            bot.send_message(chat_id, "⚠ Ссылка непонятна. Отправь ссылку на Reels или на Instagram-канал.", reply_markup=keyboard)
 
     else:
         bot.send_message(chat_id, "❓ Неизвестная команда.", reply_markup=keyboard)
