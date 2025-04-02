@@ -8,7 +8,7 @@ import threading
 import time
 import telebot
 from flask import Flask, request
-from auth import authenticate_youtube
+from auth import get_authenticated_service
 from googleapiclient.http import MediaFileUpload
 
 # === ИНИЦИАЛИЗАЦИЯ ===
