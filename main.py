@@ -180,8 +180,7 @@ def handle_all(message):
                 if os.path.exists(path):
                     os.remove(path)
             except Exception as e:
-                bot.send_message(chat_id, f"❌ Ошибка:
-{e}", reply_markup=keyboard)
+                bot.send_message(chat_id, f"❌ Ошибка:\n{e}", reply_markup=keyboard)
         elif re.match(r"https://(www\.)?instagram\.com/[^/]+/?$", text):
             # Это канал — добавляем
             channels = load_json(CHANNELS_FILE)
