@@ -196,8 +196,10 @@ def handle_all(message):
             except Exception as e:
                 bot.send_message(chat_id, f"❌ Ошибка: {e}", reply_markup=keyboard)
         else:
-            clean_url = text.split("?")[0]
-            if re.match(r"https://(www\\.)?instagram\\.com/[^/]+/?$", clean_url):
+            clean_url = text.split("?")[0].rstrip("/")
+clean_url = clean_url + "/"
+if re.match(r"https://(www\\.)?instagram\\.com/[^/]+/$", clean_url):
+
                 channels = load_json(CHANNELS_FILE)
                 if clean_url in channels:
                     bot.send_message(chat_id, "✅ Канал уже в списке.", reply_markup=keyboard)
